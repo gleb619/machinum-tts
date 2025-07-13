@@ -1,4 +1,4 @@
-Flask==2.3.3
-Werkzeug==2.3.7
-mutagen==1.47.0
-python-sox>=0.2.1
+Flask>=2.0
+requests>=2.25
+mutagen>=1.45
+werkzeug>=2.0
