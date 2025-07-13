@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AudioForge Pro - Professional Audio Processing</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+          rel="stylesheet">
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <style>
+        .glass-effect {
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .file-drop-zone {
+            border: 2px dashed #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        .file-drop-zone.dragover {
+            border-color: #667eea;
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        .processing-bar {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            animation: shimmer 2s infinite;
+        }
+        @keyframes shimmer {
+            0% { opacity: 0.6; }
+            50% { opacity: 1; }
+            100% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+<div x-data="audioProcessor()" class="min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6 shadow-2xl">
+        <div class="container mx-auto px-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold">AudioForge Pro</h1>
+                        <p class="text-white/80 text-sm">Professional Audio Processing Suite</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="glass-effect px-4 py-2 rounded-lg">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                            <span class="text-sm font-medium">System Ready</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-6 py-8">
+        <!-- Feature Tabs -->
+        <div class="bg-white rounded-2xl shadow-xl mb-8">
+            <div class="flex border-b border-gray-200">
+                <button @click="activeTab = 'enhance'"
+                        :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-500': activeTab === 'enhance'}"
+                        class="px-6 py-4 font-medium text-gray-600 hover:text-gray-900 focus:outline-none transition-colors">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                        <span>Enhance Audio</span>
+                    </div>
+                </button>
+                <button @click="activeTab = 'join'"
+                        :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-500': activeTab === 'join'}"
+                        class="px-6 py-4 font-medium text-gray-600 hover:text-gray-900 focus:outline-none transition-colors">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                        </svg>
+                        <span>Join Files</span>
+                    </div>
+                </button>
+                <button @click="activeTab = 'tts'"
+                        :class="{'bg-blue-50 text-blue-600 border-b-2 border-blue-500': activeTab === 'tts'}"
+                        class="px-6 py-4 font-medium text-gray-600 hover:text-gray-900 focus:outline-none transition-colors">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                        </svg>
+                        <span>Text to Speech</span>
+                    </div>
+                </button>
+            </div>
+
+            <!-- Enhance Audio Tab -->
+            <div x-show="activeTab === 'enhance'" class="p-8">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                    <!-- File Upload Section -->
+                    <div class="lg:mr-2 lg:pr-2">
+                        <h3 class="text-xl font-semibold mb-4 gradient-text">Upload Audio Files</h3>
+                        <div @drop.prevent="handleFileDrop($event, 'enhance')"
+                             @dragover.prevent="dragOver = true"
+                             @dragleave="dragOver = false"
+                             :class="{'file-drop-zone dragover': dragOver}"
+                             class="file-drop-zone rounded-xl p-8 text-center mb-6">
+                            <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                            </svg>
+                            <p class="text-xl font-medium text-gray-700 mb-2">Drop audio files here</p>
+                            <p class="text-gray-500 mb-4">or click to browse</p>
+                            <input type="file" @change="handleFileSelect($event, 'enhance')"
+                                   multiple accept=".mp3,.wav,.m4a,.flac"
+                                   class="hidden" id="enhance-files">
+                            <label for="enhance-files"
+                                   class="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                                Browse Files
+                            </label>
+                        </div>
+
+                        <!-- Selected Files Display -->
+                        <div x-show="enhanceFiles.length > 0" class="space-y-2">
+                            <template x-for="file in enhanceFiles" :key="file.name">
+                                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                    <div class="flex items-center space-x-3">
+                                        <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="font-medium text-gray-900" x-text="file.name"></p>
+                                            <p class="text-sm text-gray-500" x-text="formatFileSize(file.size)"></p>
+                                        </div>
+                                    </div>
+                                    <button @click="removeFile(file, 'enhance')" class="text-red-500 hover:text-red-700">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Enhancement Settings -->
+                    <div>
+                        <h3 class="text-xl font-semibold mb-4 gradient-text">Enhancement Settings</h3>
+
+                        <!-- Preset Selection -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Quality Preset</label>
+                            <select x-model="enhancePreset" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                                <option value="podcast">Podcast - Voice optimized (128k)</option>
+                                <option value="music">Music - Balanced quality (256k)</option>
+                                <option value="high_quality">High Quality - Maximum fidelity (320k)</option>
+                            </select>
+                        </div>
+
+                        <!-- Metadata -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                                <input type="text" x-model="metadata.title"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Audio title">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Artist</label>
+                                <input type="text" x-model="metadata.artist"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                       placeholder="Artist name">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Album</label>
+                                    <input type="text" x-model="metadata.album"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="Album name">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Year</label>
+                                    <input type="number" x-model="metadata.year"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                           placeholder="2024">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Cover Art</label>
+                                <input type="file" @change="handleCoverArt($event)"
+                                       accept="image/*"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            </div>
+                        </div>
+
+                        <!-- Process Button -->
+                        <button @click="processEnhancement()"
+                                :disabled="enhanceFiles.length === 0 || isProcessing"
+                                class="w-full mt-6 px-6 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                            <div x-show="!isProcessing" class="flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                                </svg>
+                                <span>Enhance Audio</span>
+                            </div>
+                            <div x-show="isProcessing" class="flex items-center justify-center space-x-2">
+                                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                                <span>Processing...</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Join Files Tab -->
+            <div x-show="activeTab === 'join'" class="p-8">
+                <div class="max-w-4xl mx-auto">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- File Upload -->
+                        <div>
+                            <h3 class="text-xl font-semibold mb-4 gradient-text">Join Multiple MP3 Files</h3>
+                            <div @drop.prevent="handleFileDrop($event, 'join')"
+                                 @dragover.prevent="dragOver = true"
+                                 @dragleave="dragOver = false"
+                                 :class="{'file-drop-zone dragover': dragOver}"
+                                 class="file-drop-zone rounded-xl p-8 text-center mb-6">
+                                <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                </svg>
+                                <p class="text-xl font-medium text-gray-700 mb-2">Drop MP3 files or ZIP archive</p>
+                                <p class="text-gray-500 mb-4">Files will be joined in alphabetical order</p>
+                                <input type="file" @change="handleFileSelect($event, 'join')"
+                                       multiple accept=".mp3,.zip"
+                                       class="hidden" id="join-files">
+                                <label for="join-files"
+                                       class="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer">
+                                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    Browse Files
+                                </label>
+                            </div>
+
+                            <!-- Selected Files Display -->
+                            <div x-show="joinFiles.length > 0" class="space-y-2 max-h-64 overflow-y-auto">
+                                <template x-for="(file, index) in joinFiles" :key="file.name">
+                                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-medium"
+                                                 x-text="index + 1"></div>
+                                            <svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path>
+                                            </svg>
+                                            <div>
+                                                <p class="font-medium text-gray-900" x-text="file.name"></p>
+                                                <p class="text-sm text-gray-500" x-text="formatFileSize(file.size)"></p>
+                                            </div>
+                                        </div>
+                                        <button @click="removeFile(file, 'join')" class="text-red-500 hover:text-red-700">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Output Filename</label>
+                                <input type="text" x-model="joinOutputName"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                       placeholder="joined_audio.mp3">
+                            </div>
+                        </div>
+
+                        <!-- Join Settings -->
+                        <div>
+                            <h3 class="text-xl font-semibold mb-4 gradient-text">Join Settings</h3>
+                            <div class="mb-6">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" x-model="joinEnhance" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                    <span class="text-sm font-medium text-gray-700">Enhance merged audio</span>
+                                </label>
+                                <p class="text-sm text-gray-500 mt-1">Apply audio enhancement to improve quality of merged file</p>
+                            </div>
+
+                            <div x-show="joinEnhance" class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Enhancement Preset</label>
+                                <select x-model="joinEnhancePreset" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                    <option value="podcast">Podcast - Voice optimized</option>
+                                    <option value="music">Music - Balanced quality</option>
+                                    <option value="high_quality">High Quality - Maximum fidelity</option>
+                                </select>
+                            </div>
+
+                            <div x-show="joinEnhance" class="space-y-4 mb-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                                    <input type="text" x-model="joinMetadata.title"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                           placeholder="Speech title">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Artist</label>
+                                    <input type="text" x-model="joinMetadata.artist"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                           placeholder="Speaker name">
+                                </div>
+                            </div>
+
+                            <button @click="processJoin()"
+                                    :disabled="joinFiles.length < 2 || isProcessing"
+                                    class="w-full px-6 py-4 mb-6 bg-gradient-to-r from-green-600 to-teal-600 text-white rounded-lg font-medium hover:from-green-700 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                <div x-show="!isProcessing" class="flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                                    </svg>
+                                    <span>Join Files</span>
+                                </div>
+                                <div x-show="isProcessing" class="flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                    <span>Joining...</span>
+                                </div>
+                            </button>
+
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <div class="flex items-start space-x-3">
+                                    <svg class="w-5 h-5 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <div>
+                                        <p class="text-sm font-medium text-blue-900">Join Order</p>
+                                        <p class="text-sm text-blue-700">Files will be joined in alphabetical order. You can rename files to control the sequence.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Text to Speech Tab -->
+            <div x-show="activeTab === 'tts'" class="p-8">
+                <div class="max-w-4xl mx-auto">
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Text Input -->
+                        <div>
+                            <h3 class="text-xl font-semibold mb-6 gradient-text">Text to Speech Generation</h3>
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Text to Convert</label>
+                                <textarea x-model="ttsText"
+                                          class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                          rows="8"
+                                          placeholder="Enter the text you want to convert to speech..."></textarea>
+                                <p class="text-sm text-gray-500 mt-2" x-text="`${ttsText.length} characters / ${ttsTextWords} words`"></p>
+                            </div>
+
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Voice</label>
+                                <select x-model="ttsVoice" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                    <option value="ru-RU-DmitryNeural">Russian - Dmitry (Male)</option>
+                                    <option value="ru-RU-SvetlanaNeural">Russian - Svetlana (Female)</option>
+                                    <option value="en-US-AriaNeural">English - Aria (Female)</option>
+                                    <option value="en-US-DavisNeural">English - Davis (Male)</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Output Filename</label>
+                                <input type="text" x-model="ttsOutputName"
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                       placeholder="tts_output.mp3">
+                            </div>
+                        </div>
+
+                        <!-- TTS Settings -->
+                        <div>
+                            <h3 class="text-xl font-semibold mb-4 gradient-text">TTS Settings</h3>
+                            <div class="mb-6">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" x-model="ttsEnhance" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                    <span class="text-sm font-medium text-gray-700">Enhance generated audio</span>
+                                </label>
+                                <p class="text-sm text-gray-500 mt-1">Apply audio enhancement to improve quality</p>
+                            </div>
+
+                            <div class="mb-6">
+                                <label class="flex items-center space-x-3 cursor-pointer">
+                                    <input type="checkbox" x-model="ttsReturnMetadata" class="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500">
+                                    <span class="text-sm font-medium text-gray-700">Add audio metadata to response</span>
+                                </label>
+                                <p class="text-sm text-gray-500 mt-1">When applied, then return zip archive with two files(audio, json metadata)</p>
+                            </div>
+
+                            <div x-show="ttsEnhance" class="mb-6">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Enhancement Preset</label>
+                                <select x-model="ttsEnhancePreset" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                    <option value="podcast">Podcast - Voice optimized</option>
+                                    <option value="music">Music - Balanced quality</option>
+                                    <option value="high_quality">High Quality - Maximum fidelity</option>
+                                </select>
+                            </div>
+
+                            <div x-show="ttsEnhance" class="space-y-4 mb-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Title</label>
+                                    <input type="text" x-model="ttsMetadata.title"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                           placeholder="Speech title">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Artist</label>
+                                    <input type="text" x-model="ttsMetadata.artist"
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                           placeholder="Speaker name">
+                                </div>
+                            </div>
+
+                            <button @click="generateTTS()"
+                                    :disabled="!ttsText.trim() || isProcessing"
+                                    class="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-medium hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                                <div x-show="!isProcessing" class="flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                                    </svg>
+                                    <span x-text="ttsReturnMetadata ? 'Generate Speech + Metadata' : 'Generate Speech'"></span>
+                                </div>
+                                <div x-show="isProcessing" class="flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                    <span>Generating...</span>
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div x-show="isProcessing" class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-50">
+            <div class="container mx-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium text-gray-700">Processing audio...</span>
+                    <span class="text-sm text-gray-500">Please wait</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="processing-bar h-2 rounded-full" style="width: 100%"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Messages -->
+        <div x-show="statusMessage"
+             :class="statusType === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'"
+             class="fixed top-4 right-4 p-4 rounded-lg border shadow-lg z-50 max-w-md">
+            <div class="flex items-start space-x-3">
+                <svg x-show="statusType === 'success'" class="w-5 h-5 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <svg x-show="statusType === 'error'" class="w-5 h-5 text-red-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <div>
+                    <p class="font-medium" x-text="statusMessage"></p>
+                    <button @click="statusMessage = ''" class="text-xs underline mt-1">Dismiss</button>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<script>
+    function audioProcessor() {
+        return {
+            // State
+            activeTab: 'enhance',
+            isProcessing: false,
+            dragOver: false,
+            statusMessage: '',
+            statusType: 'success',
+
+            // Enhance Audio
+            enhanceFiles: [],
+            enhancePreset: 'high_quality',
+            metadata: {
+                title: '',
+                artist: '',
+                album: '',
+                year: ''
+            },
+            coverArt: null,
+
+            // Join Files
+            joinFiles: [],
+            joinOutputName: `joined_audio-${new Date().toISOString().replace(/[\D]+/g, '_')}.mp3`,
+            joinEnhance: false,
+            joinEnhancePreset: 'music',
+            joinMetadata: {
+                title: '',
+                artist: ''
+            },
+
+            // TTS
+            ttsText: '',
+            ttsVoice: 'ru-RU-DmitryNeural',
+            ttsOutputName: `tts_output-${new Date().toISOString().replace(/[\D]+/g, '_')}.mp3`,
+
+            ttsEnhance: false,
+            ttsReturnMetadata: false,
+            ttsEnhancePreset: 'podcast',
+            ttsMetadata: {
+                title: '',
+                artist: ''
+            },
+
+            // Methods
+            handleFileDrop(event, type) {
+                this.dragOver = false;
+                const files = Array.from(event.dataTransfer.files);
+                this.addFiles(files, type);
+            },
+
+            handleFileSelect(event, type) {
+                const files = Array.from(event.target.files);
+                this.addFiles(files, type);
+                event.target.value = '';
+            },
+
+            addFiles(files, type) {
+                if (type === 'enhance') {
+                    const audioFiles = files.filter(file =>
+                        file.type.startsWith('audio/') ||
+                        ['.mp3', '.wav', '.m4a', '.flac'].some(ext => file.name.toLowerCase().endsWith(ext))
+                    );
+                    this.enhanceFiles = [...this.enhanceFiles, ...audioFiles];
+                } else if (type === 'join') {
+                    const validFiles = files.filter(file =>
+                        file.name.toLowerCase().endsWith('.mp3') ||
+                        file.name.toLowerCase().endsWith('.zip')
+                    );
+                    this.joinFiles = [...this.joinFiles, ...validFiles];
+                }
+            },
+
+            removeFile(file, type) {
+                if (type === 'enhance') {
+                    this.enhanceFiles = this.enhanceFiles.filter(f => f !== file);
+                } else if (type === 'join') {
+                    this.joinFiles = this.joinFiles.filter(f => f !== file);
+                }
+            },
+
+            handleCoverArt(event) {
+                this.coverArt = event.target.files[0];
+            },
+
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            },
+
+            showStatus(message, type = 'success') {
+                this.statusMessage = message;
+                this.statusType = type;
+                setTimeout(() => {
+                    this.statusMessage = '';
+                }, 5000);
+            },
+
+            async processEnhancement() {
+                if (this.enhanceFiles.length === 0) {
+                    this.showStatus('Please select audio files to enhance', 'error');
+                    return;
+                }
+
+                this.isProcessing = true;
+                const formData = new FormData();
+
+                // Add files
+                this.enhanceFiles.forEach(file => {
+                    formData.append('files', file);
+                });
+
+                // Add settings
+                formData.append('preset', this.enhancePreset);
+                formData.append('metadata', JSON.stringify(this.metadata, null, 2));
+                if (this.coverArt) formData.append('cover_art', this.coverArt);
+
+                try {
+                    const response = await fetch('/api/enhance', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'enhanced_audio.zip';
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        this.showStatus('Audio enhancement completed successfully!');
+                    } else {
+                        const error = await response.json();
+                        this.showStatus(error.error || 'Enhancement failed', 'error');
+                    }
+                } catch (error) {
+                    this.showStatus('Network error: ' + error.message, 'error');
+                } finally {
+                    this.isProcessing = false;
+                }
+            },
+
+            async processJoin() {
+                if (this.joinFiles.length < 2) {
+                    this.showStatus('Please select at least 2 MP3 files to join', 'error');
+                    return;
+                }
+
+                this.isProcessing = true;
+                const formData = new FormData();
+
+                // Check if it's a single ZIP file or multiple MP3 files
+                if (this.joinFiles.length === 1 && this.joinFiles[0].name.toLowerCase().endsWith('.zip')) {
+                    formData.append('file', this.joinFiles[0]);
+                } else {
+                    this.joinFiles.forEach(file => {
+                        formData.append('files', file);
+                    });
+                }
+
+                if (this.joinEnhance) {
+                    formData.append('metadata', JSON.stringify(this.joinMetadata, null, 2));
+                }
+
+                formData.append('output_name', this.joinOutputName);
+
+                try {
+                    const response = await fetch('/api/join', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = this.joinOutputName;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        this.showStatus('Files joined successfully!');
+                    } else {
+                        const error = await response.json();
+                        this.showStatus(error.error || 'Join operation failed', 'error');
+                    }
+                } catch (error) {
+                    this.showStatus('Network error: ' + error.message, 'error');
+                } finally {
+                    this.isProcessing = false;
+                }
+            },
+
+            async generateTTS() {
+                if (!this.ttsText.trim()) {
+                    this.showStatus('Please enter text to convert to speech', 'error');
+                    return;
+                }
+
+                this.isProcessing = true;
+                const payload = {
+                    text: this.ttsText,
+                    voice: this.ttsVoice,
+                    output_file: this.ttsOutputName,
+                    enhance: (this.ttsEnhance + ''),
+                    return_zip: (this.ttsReturnMetadata + '')
+                };
+
+                if (this.ttsEnhance) {
+                    payload.enhance_preset = this.ttsEnhancePreset;
+                    if (this.ttsMetadata.title || this.ttsMetadata.artist) {
+                        payload.metadata = JSON.stringify(this.ttsMetadata, null, 2);
+                    }
+                }
+
+                try {
+                    const response = await fetch('/api/tts', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = this.ttsOutputName;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        this.showStatus('Text-to-speech generation completed!');
+                    } else {
+                        const error = await response.json();
+                        this.showStatus(error.error || 'TTS generation failed', 'error');
+                    }
+                } catch (error) {
+                    this.showStatus('Network error: ' + error.message, 'error');
+                } finally {
+                    this.isProcessing = false;
+                }
+            },
+
+            get ttsTextWords() {
+                const words = this.ttsText.trim().split(/\s+/);
+                const validWords = words.filter(word => word.length > 0);
+                return validWords.length;
+            }
+
+        }
+    }
+</script>
+</body>
+</html>

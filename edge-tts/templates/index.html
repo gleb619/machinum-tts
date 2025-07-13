@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Processing Service</title>
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+          rel="stylesheet">
+    <!-- Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Custom Google Font -->
+</head>
+<body class="bg-blue-100 text-blue-800 antialiased">
+
+<div x-data="audioApp()" class="min-h-screen container mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- Header -->
+    <header class="mb-8">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-900">Audio Processing Service</h1>
+                <p class="text-blue-500 mt-1">Convert text to speech and process audio files with ease.</p>
+            </div>
+            <!-- Health Check Indicator -->
+            <div @click="healthCheck" class="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-blue-200 transition-colors">
+                <span class="text-sm font-semibold text-blue-600" x-text="health.message">Checking...</span>
+                <div class="w-4 h-4 rounded-full transition-colors" :class="{
+                        'bg-green-500 animate-pulse': health.status === 'healthy',
+                        'bg-red-500': health.status === 'error',
+                        'bg-yellow-400': health.status === 'checking'
+                    }"></div>
+            </div>
+        </div>
+    </header>
+
+    <main x-data="{ activeTab: 'tts' }" class="bg-white rounded-2xl shadow-lg p-4 sm:p-8 max-w-xl mx-auto">
+
+        <!-- Tabs Navigation -->
+        <div class="border-b border-blue-200 mb-6">
+            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                <button @click="activeTab = 'tts'"
+                        :class="activeTab === 'tts' ? 'border-blue-500 text-blue-600' : 'border-transparent text-blue-500 hover:text-blue-700 hover:border-blue-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors mx-auto">
+                    Edge TTS
+                </button>
+            </nav>
+        </div>
+
+        <div x-show="activeTab === 'tts'">
+            <form @submit.prevent="submitTts" class="space-y-6 max-w-xl mx-auto">
+                <div>
+                    <label for="tts-text" class="block text-sm font-medium text-blue-700 p-2">Text to Speech</label>
+                    <textarea id="tts-text" x-model="tts.text" rows="10" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2" placeholder="e.g., Привет Мир!"></textarea>
+                    <p class="mt-2 text-xs text-blue-500" x-text="`${tts.text.length} characters / ${ttsTextWords} words`"></p>
+                </div>
+                <div>
+                    <label for="tts-voice" class="block text-sm font-medium text-blue-700">Voice Model</label>
+                    <input type="text" id="tts-voice" list="voice-list" x-model="tts.voice" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2" placeholder="e.g., ru-RU-DmitryNeural">
+                    <datalist id="voice-list">
+                        <option>ru-RU-SvetlanaNeural</option>
+                        <option>ru-RU-DmitryNeural</option>
+                        <option>ru-RU-DariyaNeural</option>
+                    </datalist>
+                </div>
+                <div class="hidden">
+                    <label for="tts-outputFile" class="block text-sm font-medium text-blue-700">Output Filename</label>
+                    <input type="text" id="tts-outputFile" x-model="tts.outputFile" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2" placeholder="e.g., output.mp3">
+                    <p class="mt-2 text-xs text-gray-500">This will be the name of the downloaded file.</p>
+                </div>
+                <div class="pt-2">
+                    <button type="submit" :disabled="tts.loading" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:bg-indigo-300 disabled:cursor-not-allowed">
+                        <template x-if="tts.loading">
+                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                        </template>
+                        <span x-text="tts.loading ? 'Generating...' : 'Generate Audio'"></span>
+                    </button>
+                </div>
+                <!-- Error Display -->
+                <template x-if="tts.error">
+                    <div class="rounded-md bg-red-50 p-4">
+                        <div class="flex">
+                            <div class="flex-shrink-0">
+                                <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <p class="text-sm font-medium text-red-800" x-text="tts.error"></p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <!-- Result Display -->
+                <div x-show="tts.resultUrl" x-transition class="space-y-3">
+                    <h3 class="text-base font-medium text-blue-900">Result</h3>
+                    <audio controls :src="tts.resultUrl" class="w-full"></audio>
+                    <a :href="tts.resultUrl" :download="tts.outputFile" class="inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                        Download MP3
+                    </a>
+                </div>
+            </form>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    function audioApp() {
+        return {
+            health: {
+                status: 'checking', // 'checking', 'healthy', 'error'
+                message: 'Checking API Status...'
+            },
+            tts: {
+                text: 'Привет Мир!',
+                voice: 'ru-RU-DmitryNeural',
+                outputFile:'output.mp3',
+                loading: false,
+                error: null,
+                resultUrl: null,
+            },
+
+            init() {
+                this.healthCheck();
+                this.tts = JSON.parse(localStorage.getItem('tts')) || {...this.tts};
+                this.tts.loading = false;
+                this.tts.outputFile = `output-${new Date().toISOString().replace('T', '')}.mp3`;
+            },
+
+            // --- Health Check Logic ---
+            async healthCheck() {
+                this.health.status = 'checking';
+                this.health.message = 'Checking API Status...';
+                try {
+                    const response = await fetch('/api/health');
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    if (data.status === 'healthy') {
+                        this.health.status = 'healthy';
+                        this.health.message = 'API is Online';
+                    } else {
+                        throw new Error('API reported an unhealthy status.');
+                    }
+                } catch (error) {
+                    console.error('Health check failed:', error);
+                    this.health.status = 'error';
+                    this.health.message = 'API is Offline';
+                }
+            },
+
+            // --- TTS Logic ---
+            async submitTts() {
+                this.tts.loading = true;
+                this.tts.error = null;
+                this.tts.resultUrl = null;
+
+                try {
+                    const response = await fetch('/api/tts', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            text: this.tts.text,
+                            voice: this.tts.voice,
+                            outputFile: this.tts.outputFile,
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'An unknown error occurred.');
+                    }
+
+                    const { resultUrl, ...restFields } = this.tts;
+                    localStorage.setItem('tts', JSON.stringify(restFields));
+                    
+                    const blob = await response.blob();
+                    this.tts.resultUrl = URL.createObjectURL(blob);
+
+                } catch (error) {
+                    console.error('TTS submission failed:', error);
+                    this.tts.error = error.message;
+                } finally {
+                    this.tts.loading = false;
+                }
+            },
+
+            get ttsTextWords() {
+              return (this.tts?.text || '').trim().split(/\s+/).length;
+            }
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Processing Service</title>
+    <!-- Tailwind CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+          rel="stylesheet">
+    <!-- Alpine.js -->
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Custom Google Font -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+        /* Style for the file input dropzone */
+        .dropzone-active {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+        .w-96 {
+        	width: 24rem;
+        }
+    </style>
+</head>
+<body class="bg-blue-100 text-blue-800 antialiased">
+
+<div x-data="audioApp()" class="min-h-screen container mx-auto p-4 sm:p-6 lg:p-8">
+
+    <!-- Header -->
+    <header class="mb-8">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-blue-900">Audio Processing Service</h1>
+                <p class="text-blue-500 mt-1">Convert text to speech and process audio files with ease.</p>
+            </div>
+            <!-- Health Check Indicator -->
+            <div @click="healthCheck" class="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-blue-200 transition-colors">
+                <span class="text-sm font-semibold text-blue-600" x-text="health.message">Checking...</span>
+                <div class="w-4 h-4 rounded-full transition-colors" :class="{
+                        'bg-green-500 animate-pulse': health.status === 'healthy',
+                        'bg-red-500': health.status === 'error',
+                        'bg-yellow-400': health.status === 'checking'
+                    }"></div>
+            </div>
+        </div>
+    </header>
+
+    <main x-data="{ activeTab: 'tts' }" class="bg-white rounded-2xl shadow-lg p-4 sm:p-8">
+
+        <!-- Tabs Navigation -->
+        <div class="border-b border-blue-200 mb-6">
+            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                <button @click="activeTab = 'tts'"
+                        :class="activeTab === 'tts' ? 'border-blue-500 text-blue-600' : 'border-transparent text-blue-500 hover:text-blue-700 hover:border-blue-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    Text-to-Speech (MP3)
+                </button>
+                <button @click="activeTab = 'raw-tts'"
+                        :class="activeTab === 'raw-tts' ? 'border-blue-500 text-blue-600' : 'border-transparent text-blue-500 hover:text-blue-700 hover:border-blue-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    Text-to-Speech (Wav)
+                </button>
+                <button @click="activeTab = 'converter'"
+                        :class="activeTab === 'converter' ? 'border-blue-500 text-blue-600' : 'border-transparent text-blue-500 hover:text-blue-700 hover:border-blue-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors">
+                    Audio File Converter
+                </button>
+            </nav>
+        </div>
+
+        <!-- TTS Tab Content -->
+        <div x-show="activeTab === 'tts'">
+            <div class="grid grid-cols-1">
+                <!-- Left Column: Input and Settings -->
+                <form @submit.prevent="submitTTS('/api/tts', 'audio')" class="space-y-6 m-auto">
+                    <div>
+                        <label for="tts-text" class="block text-sm font-medium text-blue-700 p-2">Text to Synthesize</label>
+                        <textarea id="tts-text" x-model="tts.text" rows="10" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2" placeholder="Enter your text here..."></textarea>
+                        <p class="mt-2 text-xs text-blue-500" x-text="`${tts.text.length} characters / ${ttsTextWords} words`"></p>
+                    </div>
+
+                    <fieldset>
+                        <legend class="text-base font-medium text-blue-900">Configuration</legend>
+                        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Speaker ID -->
+                            <div>
+                                <label for="speaker_id" class="block text-sm font-medium text-blue-700">Speaker ID</label>
+                                <input type="text" x-model="tts.speaker_id" list="speaker-list"  id="speaker_id" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                                <datalist id="speaker-list">
+                                    <template x-for="speaker in speakers" :key="speaker.name">
+                                        <option x-text="speaker.name"></option>
+                                    </template>
+                                </datalist>
+                            </div>
+                            <!-- Language ID -->
+                            <div>
+                                <label for="language_id" class="block text-sm font-medium text-blue-700">Language ID</label>
+                                <input type="text" x-model="tts.language_id" id="language_id" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                            </div>
+                            <!-- Bitrate -->
+                            <div>
+                                <label for="bitrate" class="block text-sm font-medium text-blue-700">Bitrate</label>
+                                <select x-model="tts.bitrate" id="bitrate" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                                    <option>128k</option>
+                                    <option>192k</option>
+                                    <option>256k</option>
+                                    <option>320k</option>
+                                </select>
+                            </div>
+                            <!-- Max Workers -->
+                            <div class="hidden">
+                                <label for="max_workers" class="block text-sm font-medium text-blue-700">Max Workers</label>
+                                <input type="number" x-model.number="tts.max_workers" id="max_workers" min="1" max="10" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center space-x-4 pt-2">
+                        <button type="submit" :disabled="tts.loading" class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 disabled:cursor-not-allowed">
+                            <template x-if="tts.loading">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </template>
+                            <span x-text="tts.loading ? 'Generating...' : 'Generate MP3'"></span>
+                        </button>
+                        <button type="button" @click="previewChunks" :disabled="tts.loading" class="inline-flex items-center rounded-md border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50">
+                            Preview Chunks
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Right Column: Results and Preview -->
+                <div class="space-y-6">
+                    <!-- Error Display -->
+                    <template x-if="tts.error">
+                        <div class="rounded-md bg-red-50 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-red-800">Error</h3>
+                                    <div class="mt-2 text-sm text-red-700">
+                                        <p x-text="tts.error"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Audio Player -->
+                    <div x-show="tts.resultUrl" x-transition>
+                        <h3 class="text-base font-medium text-blue-900 mb-2">Result</h3>
+                        <audio controls :src="tts.resultUrl" class="w-full"></audio>
+                        <a :href="tts.resultUrl" :download="`tts_output_${Date.now()}.mp3`" class="mt-3 inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                            Download MP3
+                        </a>
+                    </div>
+
+                    <!-- Chunk Preview -->
+                    <div x-show="tts.preview.chunks.length > 0" x-transition>
+                        <h3 class="text-base font-medium text-blue-900 mb-2">Text Chunk Preview</h3>
+                        <p class="text-sm text-blue-500 mb-3" x-text="`Original Length: ${tts.preview.original_length}, Number of Chunks: ${tts.preview.num_chunks}`"></p>
+                        <div class="max-h-60 overflow-y-auto space-y-3 pr-2 custom-scrollbar rounded-lg border border-blue-200 p-4">
+                            <template x-for="(chunk, index) in tts.preview.chunks" :key="index">
+                                <div class="bg-blue-50 p-3 rounded-md">
+                                    <div class="flex justify-between items-center text-xs font-mono text-blue-500 mb-1">
+                                        <span>Chunk <span x-text="index + 1"></span></span>
+                                        <span x-text="`${chunk.length} chars`"></span>
+                                    </div>
+                                    <p class="text-sm text-blue-700" x-text="chunk.text"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div x-show="activeTab === 'raw-tts'">
+            <div class="grid grid-cols-1">
+                <!-- Left Column: Input and Settings -->
+                <form @submit.prevent="submitTTS('/api/tts_chunked', 'zip')" class="space-y-6 m-auto">
+                    <div>
+                        <label for="raw-tts-text" class="block text-sm font-medium text-blue-700 p-2">Text to Speech</label>
+                        <textarea id="raw-tts-text" x-model="tts.text" rows="10" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2" placeholder="Enter your text here..."></textarea>
+                        <p class="mt-2 text-xs text-blue-500" x-text="`${tts.text.length} characters / ${ttsTextWords} words`"></p>
+                    </div>
+
+                    <fieldset>
+                        <legend class="text-base font-medium text-blue-900">Configuration</legend>
+                        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Speaker ID -->
+                            <div>
+                                <label for="raw-speaker_id" class="block text-sm font-medium text-blue-700">Speaker ID</label>
+                                <input type="text" x-model="tts.speaker_id" list="speaker-list"  id="raw-speaker_id" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                                <datalist id="raw-speaker-list">
+                                    <template x-for="speaker in speakers" :key="speaker.name">
+                                        <option x-text="speaker.name"></option>
+                                    </template>
+                                </datalist>
+                            </div>
+                            <!-- Language ID -->
+                            <div>
+                                <label for="raw-language_id" class="block text-sm font-medium text-blue-700">Language ID</label>
+                                <input type="text" x-model="tts.language_id" id="raw-language_id" class="mt-1 block w-full rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                            </div>
+                        </div>
+                    </fieldset>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center space-x-4 pt-2">
+                        <button type="submit" :disabled="tts.loading" class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 disabled:cursor-not-allowed">
+                            <template x-if="tts.loading">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </template>
+                            <span x-text="tts.loading ? 'Generating...' : 'Generate Wav'"></span>
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Right Column: Results and Preview -->
+                <div class="space-y-6">
+                    <!-- Error Display -->
+                    <template x-if="tts.error">
+                        <div class="rounded-md bg-red-50 p-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <h3 class="text-sm font-medium text-red-800">Error</h3>
+                                    <div class="mt-2 text-sm text-red-700">
+                                        <p x-text="tts.error"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+
+                    <!-- Audio Player -->
+                    <div x-show="tts.resultUrl && tts.resultType == 'audio'" x-transition>
+                        <h3 class="text-base font-medium text-blue-900 mb-2">Result</h3>
+                        <audio controls :src="tts.resultUrl" class="w-full"></audio>
+                        <a :href="tts.resultUrl" :download="`tts_output_${Date.now()}.mp3`" class="mt-3 inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                            Download MP3
+                        </a>
+                    </div>
+
+                    <!-- Chunk Preview -->
+                    <div x-show="tts.preview.chunks.length > 0" x-transition>
+                        <h3 class="text-base font-medium text-blue-900 mb-2">Text Chunk Preview</h3>
+                        <p class="text-sm text-blue-500 mb-3" x-text="`Original Length: ${tts.preview.original_length}, Number of Chunks: ${tts.preview.num_chunks}`"></p>
+                        <div class="max-h-60 overflow-y-auto space-y-3 pr-2 custom-scrollbar rounded-lg border border-blue-200 p-4">
+                            <template x-for="(chunk, index) in tts.preview.chunks" :key="index">
+                                <div class="bg-blue-50 p-3 rounded-md">
+                                    <div class="flex justify-between items-center text-xs font-mono text-blue-500 mb-1">
+                                        <span>Chunk <span x-text="index + 1"></span></span>
+                                        <span x-text="`${chunk.length} chars`"></span>
+                                    </div>
+                                    <p class="text-sm text-blue-700" x-text="chunk.text"></p>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Converter Tab Content -->
+        <div x-show="activeTab === 'converter'">
+            <div class="grid grid-cols-1">
+                <form @submit.prevent="submitConverter" class="space-y-6 m-auto max-w-xl w-96">
+                    <!-- File Dropzone -->
+                    <div @dragover.prevent="converter.dragging = true"
+                         @dragleave.prevent="converter.dragging = false"
+                         @drop.prevent="handleFileDrop($event)"
+                         class="mt-1 flex justify-center rounded-md border-2 border-dashed border-blue-300 px-6 pt-5 pb-6 transition-colors w-full"
+                         :class="{ 'dropzone-active': converter.dragging }">
+                        <div class="space-y-1 text-center">
+                            <svg class="mx-auto h-12 w-12 text-blue-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <div class="flex text-sm text-blue-600">
+                                <label for="file-upload" class="relative cursor-pointer rounded-md bg-white font-medium text-blue-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-blue-500 focus-within:ring-offset-2 hover:text-blue-500">
+                                    <span>Upload files</span>
+                                    <input id="file-upload" name="files" type="file" class="sr-only" multiple @change="handleFileSelect($event)">
+                                </label>
+                                <p class="pl-1">or drag and drop</p>
+                            </div>
+                            <p class="text-xs text-blue-500">ZIP, WAV, etc.</p>
+                            <p class="text-xs text-gray-300">to convert them into a single mp3 file.</p>
+                        </div>
+                    </div>
+
+                    <!-- File List -->
+                    <div x-show="converter.files.length > 0" class="space-y-2">
+                        <h3 class="text-sm font-medium text-blue-900">Selected Files:</h3>
+                        <ul class="divide-y divide-blue-200 rounded-md border border-blue-200">
+                            <template x-for="(file, index) in converter.files" :key="index">
+                                <li class="flex items-center justify-between py-2 px-3 text-sm">
+                                    <span class="font-mono text-blue-700 truncate" x-text="file.name"></span>
+                                    <button @click="converter.files.splice(index, 1)" type="button" class="text-blue-400 hover:text-red-600">&times;</button>
+                                </li>
+                            </template>
+                        </ul>
+                    </div>
+
+                    <!-- Converter Settings -->
+                    <div>
+                        <label for="converter-bitrate" class="block text-sm font-medium text-blue-700">Output Bitrate</label>
+                        <select x-model="converter.bitrate" id="converter-bitrate" class="mt-1 block w-1/3 rounded-md border-blue-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm px-4 py-2">
+                            <option>128k</option>
+                            <option>192k</option>
+                            <option>256k</option>
+                            <option>320k</option>
+                        </select>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="pt-2">
+                        <button type="submit" :disabled="converter.loading || converter.files.length === 0" class="inline-flex items-center justify-center rounded-md border border-transparent bg-blue-600 px-4 py-2 text-base font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:bg-blue-300 disabled:cursor-not-allowed">
+                            <template x-if="converter.loading">
+                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            </template>
+                            <span x-text="converter.loading ? 'Processing...' : 'Convert & Merge'"></span>
+                        </button>
+                    </div>
+
+                    <!-- Error Display -->
+                    <template x-if="converter.error">
+                        <div class="rounded-md bg-red-50 p-4">
+                            <p class="text-sm text-red-700" x-text="converter.error"></p>
+                        </div>
+                    </template>
+
+                    <!-- Result Display -->
+                    <div x-show="converter.resultUrl" x-transition>
+                        <h3 class="text-base font-medium text-blue-900 mb-2">Merged & Enhanced Audio</h3>
+                        <audio controls :src="converter.resultUrl" class="w-full"></audio>
+                        <a :href="converter.resultUrl" :download="`enhanced_merged_${Date.now()}.mp3`" class="mt-3 inline-flex items-center justify-center rounded-md border border-transparent bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-green-700">
+                            Download Merged MP3
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<script>
+    function audioApp() {
+        return {
+            health: {
+                status: 'checking', // 'checking', 'healthy', 'error'
+                message: 'Checking API Status...'
+            },
+            tts: {
+                text: 'Hello, this is a test of the text to speech system. I can speak in multiple languages.',
+                speaker_id: 'Sofia Hellen',
+                language_id: 'ru',
+                bitrate: '192k',
+                max_workers: 1,
+                style_wav: '',
+                loading: false,
+                error: null,
+                resultUrl: null,
+                resultType: 'audio',
+                preview: {
+                    original_length: 0,
+                    num_chunks: 0,
+                    chunks: []
+                }
+            },
+            converter: {
+                files: [],
+                bitrate: '192k',
+                loading: false,
+                error: null,
+                resultUrl: null,
+                dragging: false,
+            },
+            speakers: [
+                { name: 'Claribel Dervla', priority: -1 },
+                { name: 'Daisy Studious', priority: -2 },
+                { name: 'Gracie Wise', priority: -1 },
+                { name: 'Tammie Ema', priority: 1 },
+                { name: 'Alison Dietlinde', priority: 1 },
+                { name: 'Ana Florence', priority: 1 },
+                { name: 'Annmarie Nele', priority: 1 },
+                { name: 'Asya Anara', priority: 1 },
+                { name: 'Brenda Stern', priority: -1 },
+                { name: 'Gitta Nikolina', priority: 1 },
+                { name: 'Henriette Usha', priority: -1 },
+                { name: 'Sofia Hellen', priority: 3 },
+                { name: 'Tammy Grit', priority: 1 },
+                { name: 'Tanja Adelina', priority: 2 },
+                { name: 'Vjollca Johnnie', priority: 1 },
+                { name: 'Andrew Chipper', priority: -1 },
+                { name: 'Badr Odhiambo', priority: 1 },
+                { name: 'Dionisio Schuyler', priority: 1 },
+                { name: 'Royston Min', priority: 1 },
+                { name: 'Viktor Eka', priority: 1 },
+                { name: 'Abrahan Mack', priority: 1 },
+                { name: 'Adde Michal', priority: 1 },
+                { name: 'Baldur Sanjin', priority: 1 },
+                { name: 'Craig Gutsy', priority: -1 },
+                { name: 'Damien Black', priority: -1 },
+                { name: 'Gilberto Mathias', priority: 1 },
+                { name: 'Ilkin Urbano', priority: 1 },
+                { name: 'Kazuhiko Atallah', priority: 1 },
+                { name: 'Ludvig Milivoj', priority: -1 },
+                { name: 'Suad Qasim', priority: -1 },
+                { name: 'Torcull Diarmuid', priority: 1 },
+                { name: 'Viktor Menelaos', priority: 1 },
+                { name: 'Zacharie Aimilios', priority: 1 },
+                { name: 'Nova Hogarth', priority: 2 },
+                { name: 'Maja Ruoho', priority: -1 },
+                { name: 'Uta Obando', priority: 1 },
+                { name: 'Lidiya Szekeres', priority: 1 },
+                { name: 'Chandra MacFarland', priority: -1 },
+                { name: 'Szofi Granger', priority: -1 },
+                { name: 'Camilla Holmström', priority: -1 },
+                { name: 'Lilya Stainthorpe', priority: 2 },
+                { name: 'Zofija Kendrick', priority: 1 },
+                { name: 'Narelle Moon', priority: -1 },
+                { name: 'Barbora MacLean', priority: -1 },
+                { name: 'Alexandra Hisakawa', priority: 1 },
+                { name: 'Alma María', priority: -1 },
+                { name: 'Rosemary Okafor', priority: -1 },
+                { name: 'Ige Behringer', priority: -1 },
+                { name: 'Filip Traverse', priority: 1 },
+                { name: 'Damjan Chapman', priority: 2 },
+                { name: 'Wulf Carlevaro', priority: 1 },
+                { name: 'Aaron Dreschner', priority: 1 },
+                { name: 'Kumar Dahl', priority: 1 },
+                { name: 'Eugenio Mataracı', priority: -1 },
+                { name: 'Ferran Simen', priority: -1 },
+                { name: 'Xavier Hayasaka', priority: 1 },
+                { name: 'Luis Moray', priority: 1 },
+                { name: 'Marcos Rudaski', priority: 1 }
+            ].sort((a, b) => b.priority - a.priority),
+
+            init() {
+                this.healthCheck();
+                this.tts = JSON.parse(localStorage.getItem('tts')) || {...this.tts};
+                this.tts.loading = false;
+                this.ttsAlt = JSON.parse(localStorage.getItem('ttsAlt')) || {...this.ttsAlt};
+                this.ttsAlt.loading = false;
+            },
+
+            // --- Health Check Logic ---
+            async healthCheck() {
+                this.health.status = 'checking';
+                this.health.message = 'Checking API Status...';
+                try {
+                    const response = await fetch('/api/health');
+                    if (!response.ok) throw new Error('Network response was not ok.');
+                    const data = await response.json();
+                    if (data.status === 'healthy') {
+                        this.health.status = 'healthy';
+                        this.health.message = 'API is Online';
+                    } else {
+                        throw new Error('API reported an unhealthy status.');
+                    }
+                } catch (error) {
+                    console.error('Health check failed:', error);
+                    this.health.status = 'error';
+                    this.health.message = 'API is Offline';
+                }
+            },
+
+            // --- TTS Logic ---
+            async submitTTS(ttsUrl, type) {
+                this.tts.loading = true;
+                this.tts.error = null;
+                this.tts.resultUrl = null;
+                this.tts.preview.chunks = [];
+
+                try {
+                    const response = await fetch(ttsUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            text: this.tts.text,
+                            speaker_id: this.tts.speaker_id,
+                            language_id: this.tts.language_id,
+                            bitrate: this.tts.bitrate,
+                            max_workers: this.tts.max_workers,
+                            style_wav: this.tts.style_wav
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'An unknown error occurred.');
+                    }
+
+                    // Handle successful audio response
+                    const { resultUrl, ...restFields } = this.tts;
+                    localStorage.setItem('tts', JSON.stringify(restFields));
+
+                    this.tts.resultType = type;
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+
+                    if(type == 'audio') {
+                        this.tts.resultUrl = url;
+                    } else {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `tts_chunks_${Date.now()}.zip`;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+                    }
+
+                } catch (error) {
+                    console.error('TTS submission failed:', error);
+                    this.tts.error = error.message;
+                } finally {
+                    this.tts.loading = false;
+                }
+            },
+
+            async previewChunks() {
+                this.tts.error = null;
+                this.tts.preview.chunks = [];
+
+                try {
+                    const response = await fetch('/api/tts/preview', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text: this.tts.text })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to fetch preview.');
+                    }
+
+                    this.tts.preview = await response.json();
+
+                } catch (error) {
+                    console.error('TTS preview failed:', error);
+                    this.tts.error = error.message;
+                }
+            },
+
+            // --- Converter Logic ---
+            handleFileSelect(event) {
+                this.converter.files = Array.from(event.target.files);
+            },
+
+            handleFileDrop(event) {
+                this.converter.dragging = false;
+                this.converter.files = Array.from(event.dataTransfer.files);
+            },
+
+            async submitConverter() {
+                if (this.converter.files.length === 0) return;
+
+                this.converter.loading = true;
+                this.converter.error = null;
+                this.converter.resultUrl = null;
+
+                const formData = new FormData();
+                this.converter.files.forEach(file => {
+                    formData.append('files', file);
+                });
+                formData.append('bitrate', this.converter.bitrate);
+
+                try {
+                    const response = await fetch('/api/convert', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'An unknown error occurred during conversion.');
+                    }
+
+                    const blob = await response.blob();
+                    this.converter.resultUrl = URL.createObjectURL(blob);
+
+                } catch (error) {
+                    console.error('Converter submission failed:', error);
+                    this.converter.error = error.message;
+                } finally {
+                    this.converter.loading = false;
+                }
+            },
+
+            get ttsTextWords() {
+              return (this.tts?.text || '').trim().split(/\s+/).length;
+            }
+        }
+    }
+</script>
+</body>
+</html>
