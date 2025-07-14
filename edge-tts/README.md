@@ -28,7 +28,7 @@ application allows users to send text and receive an audio file in response.
 - **Request Body** (JSON):
     - `text`: The text to convert into speech. Default is "Привет Мир!".
     - `voice`: The voice model to use for generating the speech. Default is "ru-RU-DmitryNeural".
-    - `outputFile`: The name of the output file. Default is "output.mp3".
+    - `output_file`: The name of the output file. Default is "output.mp3".
 - **Response**: Audio file as an attachment or error message.
 
 ## Usage

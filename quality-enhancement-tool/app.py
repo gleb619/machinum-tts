@@ -170,8 +170,10 @@ def tts_route():
     Optionally enhances the audio and adds metadata.
     Can return a single MP3 or a ZIP with the MP3 and a metadata file.
     """
+    start_time = time.time()
     try:
         # Parse data from JSON or form
+        app.logger.info("Got request to generate TTS, parsing incoming data.")
         data = request.get_json() if request.is_json else request.form.to_dict()
         text = data.get("text")
         if not text:
@@ -182,9 +184,13 @@ def tts_route():
         should_enhance = str(data.get("enhance", "false")).lower() == "true"
         return_zip = str(data.get("return_zip", "false")).lower() == "true"
 
+        app.logger.info(f"Received text: {text}, voice: {voice}, output_file: {output_filename}, enhance: {should_enhance}, return_zip: {return_zip}")
+
         with tempfile.TemporaryDirectory() as temp_dir:
             # Generate the base TTS audio file
-            final_path = tts_service.generate_audio(text, voice, temp_dir)
+            app.logger.info("Starting TTS audio generation.")
+            final_path = tts_service.generate_audio(text, voice, output_filename, temp_dir)
+            app.logger.info(f"TTS audio generated and saved to {final_path}.")
 
             # Optionally enhance the generated audio
             if should_enhance:
@@ -192,18 +198,21 @@ def tts_route():
                 preset = data.get("enhance_preset", "podcast")
                 metadata = file_service.get_metadata_from_request(request)
 
-                # Enhancement requires a clean audio stream
-                extracted_path = ffmpeg_service.extract_audio_stream(final_path, temp_dir, "extracted.mp3")
-                enhanced_path = ffmpeg_service.enhance_audio(extracted_path, temp_dir, "enhanced.mp3", preset)
+                app.logger.info(f"Starting audio enhancement with preset: {preset}.")
+                extracted_path = ffmpeg_service.extract_audio_stream(final_path, temp_dir, "extracted_" + output_filename)
+                enhanced_path = ffmpeg_service.enhance_audio(extracted_path, temp_dir, preset, "enhanced_" + output_filename)
                 id3_service.add_tags(enhanced_path, metadata)
                 final_path = enhanced_path
+                app.logger.info(f"Audio enhancement completed and saved to {final_path}.")
 
             # Prepare and send the response
             if return_zip:
                 file_metadata = file_service.get_file_metadata(final_path)
                 zip_path = file_service.create_zip_with_metadata(final_path, file_metadata, temp_dir)
+                app.logger.info(f"Creating ZIP with metadata at {zip_path}.")
                 return send_file(zip_path, as_attachment=True, mimetype='application/zip')
             else:
+                app.logger.info(f"Sending audio file: {final_path} as attachment.")
                 return send_file(final_path, as_attachment=True, download_name=output_filename, mimetype='audio/mpeg')
 
     except Exception as e:
@@ -212,6 +221,11 @@ def tts_route():
         if not isinstance(e, AppError):
             raise AppError("An internal error occurred during TTS processing.", 500)
         raise e
+
+    finally:
+        end_time = time.time()
+        operation_duration = end_time - start_time
+        app.logger.info(f"TTS operation took {operation_duration:.2f} seconds.")
 
 # --- Main Execution ---
 if __name__ == '__main__':

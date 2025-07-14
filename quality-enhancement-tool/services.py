@@ -72,13 +72,16 @@ class FFmpegService:
         self._run_command(cmd, "FFmpeg audio extraction failed")
         return output_path
 
-    def enhance_audio(self, input_path, output_dir, preset_name='music', output_filename="enhanced.mp3"):
+    def enhance_audio(self, input_path, output_dir, preset_name=None, output_filename="enhanced.mp3"):
         """
         Applies audio enhancement filters using FFmpeg based on a defined preset.
 
         Returns:
             str: The path to the enhanced audio file.
         """
+        if preset_name is None:
+            preset_name = 'music'
+
         config = PRESETS.get(preset_name)
         if not config:
             raise AppError(f"Invalid enhancement preset: {preset_name}", 400)
@@ -219,7 +222,7 @@ class TTSService:
         self.server_url = server_url
         self.timeout = 300  # Request timeout in seconds(5min)
 
-    def generate_audio(self, text, voice, save_directory):
+    def generate_audio(self, text, voice, output_file, save_directory):
         """
         Requests TTS audio from the server and saves it to a file.
 
@@ -229,7 +232,7 @@ class TTSService:
         Raises:
             TTSError: If the request to the TTS server fails.
         """
-        payload = {"text": text, "voice": voice}
+        payload = {"text": text, "voice": voice, "output_file": output_file}
         output_path = os.path.join(save_directory, f"tts_{uuid.uuid4()}.mp3")
 
         start_time = time.time()

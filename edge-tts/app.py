@@ -48,7 +48,7 @@ def tts():
     Expects a JSON payload with the following optional fields:
         - "text": The text to convert into speech (default: "Привет Мир!").
         - "voice": The voice model to use (default: "ru-RU-DmitryNeural").
-        - "outputFile": The name of the output file (default: "output.mp3").
+        - "output_file": The name of the output file (default: "output.mp3").
 
     Returns:
         Response: The generated audio file as an attachment or an error message.
@@ -56,13 +56,18 @@ def tts():
     start_time = time.time()
     try:
         # Parse request data
+        app.logger.info("Got request to generate TTS, parsing incoming JSON payload.")
         data = request.json if request.is_json else {}
         text = data.get("text", "Привет Мир!")
         voice = data.get("voice", "ru-RU-DmitryNeural")
-        output_file = data.get("outputFile", "output.mp3")
+        output_file = data.get("output_file", "output.mp3")
+
+        app.logger.info(f"Received text: {text}, voice: {voice}, output_file: {output_file}")
 
         # Generate audio file
+        app.logger.info(f"Starting audio generation for text '{text}' with voice '{voice}'.")
         asyncio.run(generate_audio(text, voice, output_file))
+        app.logger.info(f"Audio generated and saved to {output_file}.")
 
         # Send the generated file as a response
         return send_file(
