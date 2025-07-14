@@ -13,6 +13,7 @@ from mutagen.mp3 import MP3
 
 from errors import AppError, FFmpegError, TTSError
 from config import PRESETS
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ class TTSService:
 
     def __init__(self, server_url):
         self.server_url = server_url
-        self.timeout = 120  # Request timeout in seconds
+        self.timeout = 300  # Request timeout in seconds(5min)
 
     def generate_audio(self, text, voice, save_directory):
         """
@@ -231,6 +232,8 @@ class TTSService:
         payload = {"text": text, "voice": voice}
         output_path = os.path.join(save_directory, f"tts_{uuid.uuid4()}.mp3")
 
+        start_time = time.time()
+
         try:
             response = requests.post(self.server_url, json=payload, stream=True, timeout=self.timeout)
             response.raise_for_status()
@@ -239,10 +242,12 @@ class TTSService:
                 for chunk in response.iter_content(chunk_size=8192):
                     f.write(chunk)
 
-            logger.info(f"TTS audio saved to {os.path.basename(output_path)}")
+            elapsed_time = time.time() - start_time
+            logger.info(f"TTS audio saved to {os.path.basename(output_path)} in {elapsed_time:.2f} seconds")
             return output_path
         except requests.exceptions.RequestException as e:
-            logger.error(f"TTS server communication failed: {e}")
+            elapsed_time = time.time() - start_time
+            logger.error(f"TTS server communication failed after {elapsed_time:.2f} seconds: {e}")
             raise TTSError(f"Could not connect to the TTS service: {e}", 502)
 
 class FileService:

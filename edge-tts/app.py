@@ -4,6 +4,7 @@ from datetime import datetime
 import logging
 import asyncio
 import edge_tts
+import time
 
 # --- Basic Flask App Setup ---
 app = Flask(__name__)
@@ -52,6 +53,7 @@ def tts():
     Returns:
         Response: The generated audio file as an attachment or an error message.
     """
+    start_time = time.time()
     try:
         # Parse request data
         data = request.json if request.is_json else {}
@@ -82,6 +84,10 @@ def tts():
                 app.logger.info(f"Temporary file {output_file} has been deleted.")
         except Exception as cleanup_error:
             app.logger.error(f"Failed to delete temporary file: {str(cleanup_error)}")
+
+        end_time = time.time()
+        operation_duration = end_time - start_time
+        app.logger.info(f"TTS operation took {operation_duration:.2f} seconds.")
 
 @app.route('/')
 def index():
