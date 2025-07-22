@@ -12,6 +12,7 @@ from werkzeug.exceptions import HTTPException
 from config import Config, PRESETS
 from services import FFmpegService, ID3TagService, TTSService, FileService
 from errors import AppError
+import time
 
 # --- App Initialization & Logging ---
 def create_app():
@@ -142,6 +143,7 @@ def join_mp3_route():
     """
     ffmpeg_service.check_availability()
     output_filename = secure_filename(request.form.get('output_name', 'joined_audio.mp3'))
+    should_enhance = str(request.form.get("enhance", "false")).lower() == "true"
     if not output_filename.lower().endswith('.mp3'):
         output_filename += '.mp3'
 
@@ -152,16 +154,21 @@ def join_mp3_route():
             raise AppError('At least two MP3 files are required for joining.', 400)
 
         # Join the files
-        joined_path = ffmpeg_service.join_files(input_files, temp_dir, output_filename)
+        final_path = ffmpeg_service.join_files(input_files, temp_dir, output_filename)
 
-        # Determine and apply ID3 tags
-        final_metadata = id3_service.extract_tags(input_files[0]) # Start with tags from the first file
-        user_metadata = file_service.get_metadata_from_request(request)
-        final_metadata.update(user_metadata) # Overwrite with user-provided tags
+        if should_enhance:
+            preset = request.form.get("enhance_preset", "music")
+            enhanced_path = ffmpeg_service.enhance_audio(final_path, temp_dir, preset, "enhanced_" + output_filename)
 
-        id3_service.add_tags(joined_path, final_metadata)
+            # Determine and apply ID3 tags
+            final_metadata = id3_service.extract_tags(input_files[0]) # Start with tags from the first file
+            user_metadata = file_service.get_metadata_from_request(request)
+            final_metadata.update(user_metadata) # Overwrite with user-provided tags
 
-        return send_file(joined_path, as_attachment=True, mimetype='audio/mpeg')
+            id3_service.add_tags(enhanced_path, final_metadata)
+            final_path = enhanced_path
+
+        return send_file(final_path, as_attachment=True, mimetype='audio/mpeg')
 
 @app.route('/api/tts', methods=['POST'])
 def tts_route():
@@ -184,13 +191,12 @@ def tts_route():
         should_enhance = str(data.get("enhance", "false")).lower() == "true"
         return_zip = str(data.get("return_zip", "false")).lower() == "true"
 
-        app.logger.info(f"Received text: {text}, voice: {voice}, output_file: {output_filename}, enhance: {should_enhance}, return_zip: {return_zip}")
+        app.logger.info(f"Received text: {text[:50]}({len(text)}), voice: {voice}, output_file: {output_filename}, enhance: {should_enhance}, return_zip: {return_zip}")
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # Generate the base TTS audio file
             app.logger.info("Starting TTS audio generation.")
             final_path = tts_service.generate_audio(text, voice, output_filename, temp_dir)
-            app.logger.info(f"TTS audio generated and saved to {final_path}.")
 
             # Optionally enhance the generated audio
             if should_enhance:

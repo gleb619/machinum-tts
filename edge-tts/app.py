@@ -62,12 +62,11 @@ def tts():
         voice = data.get("voice", "ru-RU-DmitryNeural")
         output_file = data.get("output_file", "output.mp3")
 
-        app.logger.info(f"Received text: {text}, voice: {voice}, output_file: {output_file}")
+        app.logger.info(f"Received text: {text[:100]}({len(text)}), voice: {voice}, output_file: {output_file}")
 
         # Generate audio file
-        app.logger.info(f"Starting audio generation for text '{text}' with voice '{voice}'.")
+        app.logger.info(f"Starting audio generation for text '{text[:100]}' with voice '{voice}'.")
         asyncio.run(generate_audio(text, voice, output_file))
-        app.logger.info(f"Audio generated and saved to {output_file}.")
 
         # Send the generated file as a response
         return send_file(

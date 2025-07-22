@@ -61,7 +61,7 @@ fi
 echo "Setup complete!"
 
 export FLASK_DEBUG=true
-export SERVER_URL=http://borispc3.ai:5001/api/tts
+export SERVER_URL=http://localhost:5001/api/tts
 
 # Run the Flask application
 python3 app.py

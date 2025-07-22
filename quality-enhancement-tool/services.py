@@ -45,7 +45,7 @@ class FFmpegService:
             process = subprocess.run(
                 cmd, capture_output=True, text=True, check=True, encoding='utf-8'
             )
-            logger.info(f"FFmpeg command successful: {' '.join(cmd)}")
+            logger.debug(f"FFmpeg command successful: {' '.join(cmd)}")
             return process
         except FileNotFoundError:
             logger.error("FFMPEG_ERROR: The ffmpeg command was not found.")
@@ -68,7 +68,7 @@ class FFmpegService:
             'ffmpeg', '-i', input_path, '-vn', '-map', '0:a:0',
             '-c:a', 'libmp3lame', '-q:a', '0', '-y', output_path
         ]
-        logger.info(f"Extracting audio from {os.path.basename(input_path)}...")
+        logger.debug(f"Extracting audio from {os.path.basename(input_path)}...")
         self._run_command(cmd, "FFmpeg audio extraction failed")
         return output_path
 
@@ -94,7 +94,7 @@ class FFmpegService:
             '-c:a', 'libmp3lame', '-b:a', config['bitrate'], '-ar', config['sample_rate'],
             '-ac', config['channels'], '-y', output_path
         ]
-        logger.info(f"Enhancing {os.path.basename(input_path)} with preset '{preset_name}'...")
+        logger.debug(f"Enhancing {os.path.basename(input_path)} with preset '{preset_name}'...")
         self._run_command(cmd, "FFmpeg audio enhancement failed")
         return output_path
 
@@ -122,7 +122,7 @@ class FFmpegService:
                 'ffmpeg', '-f', 'concat', '-safe', '0', '-i',
                 concat_list_path, '-c', 'copy', '-y', output_path
             ]
-            logger.info(f"Joining {len(file_paths)} files into {output_filename}...")
+            logger.debug(f"Joining {len(file_paths)} files into {output_filename}...")
             self._run_command(cmd, "FFmpeg file joining failed")
             return output_path
         finally:
@@ -178,7 +178,7 @@ class ID3TagService:
                 )
 
             audio.save()
-            logger.info(f"ID3 tags successfully added to {os.path.basename(file_path)}")
+            logger.debug(f"ID3 tags successfully added to {os.path.basename(file_path)}")
         except Exception as e:
             logger.error(f"Failed to add ID3 tags to {file_path}: {e}", exc_info=True)
             # This is not a fatal error, so we log it but don't raise an exception
@@ -209,7 +209,7 @@ class ID3TagService:
                 elif frame_id.startswith('APIC'):
                     tags['cover_art'] = audio[frame_id].data
 
-            logger.info(f"Extracted {len(tags)} ID3 tags from {os.path.basename(file_path)}")
+            logger.debug(f"Extracted {len(tags)} ID3 tags from {os.path.basename(file_path)}")
             return tags
         except Exception as e:
             logger.error(f"Failed to extract ID3 tags from {file_path}: {e}", exc_info=True)
@@ -246,7 +246,7 @@ class TTSService:
                     f.write(chunk)
 
             elapsed_time = time.time() - start_time
-            logger.info(f"TTS audio saved to {os.path.basename(output_path)} in {elapsed_time:.2f} seconds")
+            logger.debug(f"TTS audio saved to {os.path.basename(output_path)} in {elapsed_time:.2f} seconds")
             return output_path
         except requests.exceptions.RequestException as e:
             elapsed_time = time.time() - start_time
@@ -273,7 +273,7 @@ class FileService:
         filename = secure_filename(file_storage.filename)
         save_path = os.path.join(directory, filename)
         file_storage.save(save_path)
-        logger.info(f"Saved uploaded file to {save_path}")
+        logger.debug(f"Saved uploaded file to {save_path}")
         return save_path
 
     def get_metadata_from_request(self, req):
@@ -294,7 +294,7 @@ class FileService:
         # Add cover art if it was uploaded
         if 'cover_art' in req.files and req.files['cover_art'].filename:
             metadata['cover_art'] = req.files['cover_art'].read()
-            logger.info("Cover art included in the request.")
+            logger.debug("Cover art included in the request.")
 
         # Filter out any keys with empty values
         return {k: v for k, v in metadata.items() if v}
@@ -345,7 +345,7 @@ class FileService:
                 # Add file to the zip with its base name
                 zipf.write(file_path, os.path.basename(file_path))
 
-        logger.info(f"Created zip archive at {zip_path_base}.zip")
+        logger.debug(f"Created zip archive at {zip_path_base}.zip")
         return f"{zip_path_base}.zip"
 
     def create_zip_with_metadata(self, file_path, metadata, temp_dir):
@@ -366,7 +366,7 @@ class FileService:
                 metadata_json = json.dumps(metadata, indent=2, default=str)
                 zipf.writestr(f"{base_filename}_metadata.json", metadata_json)
 
-            logger.info(f"Created zip with metadata at {zip_path}")
+            logger.debug(f"Created zip with metadata at {zip_path}")
             return zip_path
         except Exception as e:
             logger.error(f"Failed to create zip with metadata: {e}", exc_info=True)
