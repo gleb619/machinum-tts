@@ -144,6 +144,10 @@ def join_mp3_route():
     ffmpeg_service.check_availability()
     output_filename = secure_filename(request.form.get('output_name', 'joined_audio.mp3'))
     should_enhance = str(request.form.get("enhance", "false")).lower() == "true"
+    add_silent_gaps = str(request.form.get("add_silent_gaps", "false")).lower() == "true"
+    metadata_file_index = int(request.form.get("metadata_file_index", 0))
+    max_file_size = request.form.get("max_file_size")  # e.g., "5mb", "100mb"
+
     if not output_filename.lower().endswith('.mp3'):
         output_filename += '.mp3'
 
@@ -154,19 +158,24 @@ def join_mp3_route():
             raise AppError('At least two MP3 files are required for joining.', 400)
 
         # Join the files
-        final_path = ffmpeg_service.join_files(input_files, temp_dir, output_filename)
+        final_path = ffmpeg_service.join_files(input_files, temp_dir, output_filename, add_silent_gaps)
 
         if should_enhance:
             preset = request.form.get("enhance_preset", "music")
             enhanced_path = ffmpeg_service.enhance_audio(final_path, temp_dir, preset, "enhanced_" + output_filename)
 
             # Determine and apply ID3 tags
-            final_metadata = id3_service.extract_tags(input_files[0]) # Start with tags from the first file
+            final_metadata = id3_service.extract_tags(input_files[metadata_file_index]) # Start with tags from the first file
             user_metadata = file_service.get_metadata_from_request(request)
             final_metadata.update(user_metadata) # Overwrite with user-provided tags
 
             id3_service.add_tags(enhanced_path, final_metadata)
             final_path = enhanced_path
+
+        # Compress if file size exceeds quota
+        if max_file_size:
+            max_size_bytes = file_service.parse_size_string(max_file_size)
+            final_path = ffmpeg_service.compress_if_needed(final_path, temp_dir, max_size_bytes, output_filename)
 
         return send_file(final_path, as_attachment=True, mimetype='audio/mpeg')
 

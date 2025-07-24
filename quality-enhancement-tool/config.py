@@ -7,8 +7,8 @@ class Config:
     # Set a secret key for session management and other security features
     SECRET_KEY = os.environ.get('SECRET_KEY', 'a_default_secret_key_for_development')
 
-    # Configure max content length for uploads (50MB)
-    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 50 * 1024 * 1024))
+    # Configure max content length for uploads (500MB)
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 500 * 1024 * 1024))
 
     # Use system's temporary directory for uploads
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", tempfile.gettempdir())
@@ -18,6 +18,27 @@ class Config:
 
 # Audio processing presets configuration
 PRESETS = {
+    'tts_basic': {
+        'bitrate': '64k',
+        'sample_rate': '22050',
+        'channels': '1',
+        'loudnorm': {'I': -18, 'LRA': 6, 'TP': -2.0},
+        'description': 'Minimal voice preset for long TTS content, smallest size.'
+    },
+    'tts_balanced': {
+        'bitrate': '96k',
+        'sample_rate': '32000',
+        'channels': '1',
+        'loudnorm': {'I': -16, 'LRA': 8, 'TP': -1.5},
+        'description': 'Balanced preset for speech: good quality, compact size.'
+    },
+    'tts_hi_res': {
+        'bitrate': '128k',
+        'sample_rate': '44100',
+        'channels': '1',
+        'loudnorm': {'I': -16, 'LRA': 10, 'TP': -1.0},
+        'description': 'High-res voice with controlled size for narrations and audiobooks.'
+    },
     'podcast': {
         'bitrate': '128k',
         'sample_rate': '44100',

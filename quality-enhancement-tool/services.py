@@ -76,32 +76,75 @@ class FFmpegService:
         """
         Applies audio enhancement filters using FFmpeg based on a defined preset.
 
+        Args:
+            input_path (str): Path to input audio file.
+            output_dir (str): Directory to save enhanced file.
+            preset_name (str): Preset key from PRESETS dict.
+            output_filename (str): Name for output audio file.
+
         Returns:
             str: The path to the enhanced audio file.
         """
         if preset_name is None:
-            preset_name = 'music'
+            preset_name = 'tts_balanced'
 
         config = PRESETS.get(preset_name)
-        if not config:
-            raise AppError(f"Invalid enhancement preset: {preset_name}", 400)
-
         output_path = os.path.join(output_dir, output_filename)
-        ln = config['loudnorm']
+
+        # Build loudnorm filter string
+        ln = config.get("loudnorm", {})
+        if not all(k in ln for k in ("I", "LRA", "TP")):
+            raise AppError(f"Missing loudnorm keys in preset '{preset_name}'", 400)
+
         loudnorm_filter = f"loudnorm=I={ln['I']}:LRA={ln['LRA']}:TP={ln['TP']}"
+
+        # Assemble FFmpeg command
         cmd = [
-            'ffmpeg', '-i', input_path, '-af', loudnorm_filter,
-            '-c:a', 'libmp3lame', '-b:a', config['bitrate'], '-ar', config['sample_rate'],
-            '-ac', config['channels'], '-y', output_path
+            "ffmpeg", "-i", input_path,
+            "-af", loudnorm_filter,
+            "-c:a", "libmp3lame",
+            "-b:a", config.get("bitrate", "96k"),
+            "-ar", int(config.get("sample_rate", "22050")),
+            "-ac", int(config.get("channels", "1")),
+            "-y", output_path
         ]
+
         logger.debug(f"Enhancing {os.path.basename(input_path)} with preset '{preset_name}'...")
         self._run_command(cmd, "FFmpeg audio enhancement failed")
+
         return output_path
 
-    def join_files(self, file_paths, output_dir, output_filename):
+    def _create_silent_mp3(self, output_dir, duration=2):
         """
+        Creates a silent MP3 file with specified duration.
 
+        Args:
+            output_dir (str): Directory to create the silent file in.
+            duration (int): Duration in seconds (default: 2).
+
+        Returns:
+            str: Path to the created silent MP3 file.
+        """
+        silent_path = os.path.join(output_dir, f"silent_{duration}s.mp3")
+        cmd = [
+            'ffmpeg', '-f', 'lavfi',
+            '-i', f'anullsrc=channel_layout=stereo:sample_rate=44100',
+            '-t', str(duration),
+            '-c:a', 'mp3',
+            '-y', silent_path
+        ]
+        self._run_command(cmd, "Failed to create silent MP3")
+        return silent_path
+
+    def join_files(self, file_paths, output_dir, output_filename, add_silent_gaps=False):
+        """
         Joins multiple MP3 files into a single file using FFmpeg's concat demuxer.
+
+        Args:
+            file_paths (list): List of file paths to join.
+            output_dir (str): Directory for output and temporary files.
+            output_filename (str): Name of the output file.
+            add_silent_gaps (bool): Whether to add 2-second silent gaps between files.
 
         Returns:
             str: The path to the joined audio file.
@@ -111,24 +154,106 @@ class FFmpegService:
 
         output_path = os.path.join(output_dir, output_filename)
         concat_list_path = os.path.join(output_dir, "concat_list.txt")
+        silent_path = None
 
         try:
+            # Create silent gap file if needed
+            if add_silent_gaps:
+                silent_path = self._create_silent_mp3(output_dir, 2)
+
             # Create a temporary file list for FFmpeg's concat demuxer
             with open(concat_list_path, 'w', encoding='utf-8') as f:
-                for path in file_paths:
+                for i, path in enumerate(file_paths):
                     f.write(f"file '{os.path.abspath(path)}'\n")
+                    # Add silent gap after each file except the last one
+                    if add_silent_gaps and i < len(file_paths) - 1:
+                        f.write(f"file '{os.path.abspath(silent_path)}'\n")
 
             cmd = [
-                'ffmpeg', '-f', 'concat', '-safe', '0', '-i',
-                concat_list_path, '-c', 'copy', '-y', output_path
+                'ffmpeg', '-f', 'concat',
+                '-safe', '0',
+                '-i', concat_list_path,
+                '-map_metadata', '-1',  # Remove all metadata
+                '-c', 'copy',
+                '-y', output_path
             ]
             logger.debug(f"Joining {len(file_paths)} files into {output_filename}...")
             self._run_command(cmd, "FFmpeg file joining failed")
             return output_path
         finally:
-            # Ensure the temporary list file is removed
+            # Ensure the temporary files are removed
             if os.path.exists(concat_list_path):
                 os.remove(concat_list_path)
+            if silent_path and os.path.exists(silent_path):
+                os.remove(silent_path)
+
+    def compress_if_needed(self, input_path, output_dir, max_size_bytes, output_filename):
+        """
+        Compresses the audio file if it exceeds the specified size limit.
+        Preserves ID3 tags and uses variable bitrate for quality preservation.
+
+        Args:
+            input_path (str): Path to the input audio file.
+            output_dir (str): Directory for output files.
+            max_size_bytes (int): Maximum file size (e.g., "5mb", "100mb").
+            output_filename (str): Name of the output file.
+
+        Returns:
+            str: Path to the final file (compressed or original if under limit).
+        """
+        # Parse size string to bytes
+        current_size = os.path.getsize(input_path)
+
+        if current_size <= max_size_bytes:
+            logger.debug(f"File size {current_size} bytes is within limit {max_size_bytes} bytes")
+            return input_path
+
+        logger.debug(f"File size {current_size} bytes exceeds limit {max_size_bytes} bytes, compressing...")
+
+        compressed_filename = f"compressed_{output_filename}"
+        compressed_path = os.path.join(output_dir, compressed_filename)
+
+        # Calculate target bitrate based on file duration and size limit
+        # Get duration first
+        duration_cmd = [
+            'ffprobe', '-v', 'quiet',
+            '-show_entries',
+            'format=duration',
+            '-of',
+            'csv=p=0', input_path
+        ]
+        duration_process = self._run_command(duration_cmd, "Failed to get audio duration")
+        duration_seconds = float(duration_process.stdout.strip())
+
+        # Calculate target bitrate (leaving some margin for metadata)
+        target_bitrate = int((max_size_bytes * 8 * 0.95) / duration_seconds)  # 95% of target for safety
+        target_bitrate = max(32000, min(320000, target_bitrate))  # Clamp between 32k and 320k
+
+        cmd = [
+            'ffmpeg', '-i', input_path,
+            '-codec:a', 'libmp3lame',
+            '-b:a', str(target_bitrate),
+            '-q:a', '2',  # High quality VBR
+            '-map_metadata', '0',  # Preserve metadata/ID3 tags
+            '-y', compressed_path
+        ]
+
+        self._run_command(cmd, "FFmpeg compression failed")
+
+        # Verify compressed file is within limits
+        compressed_size = os.path.getsize(compressed_path)
+        if compressed_size <= max_size_bytes:
+            logger.debug(f"Compression successful: {compressed_size} bytes")
+            return compressed_path
+        else:
+            # If still too large, try with lower bitrate
+            logger.debug(f"First compression still too large ({compressed_size} bytes), trying lower bitrate")
+            target_bitrate = int(target_bitrate * 0.8)  # Reduce by 20%
+            target_bitrate = max(32000, target_bitrate)
+
+            cmd[cmd.index('-b:a') + 1] = str(target_bitrate)
+            self._run_command(cmd, "FFmpeg second compression failed")
+            return compressed_path
 
 class ID3TagService:
     """Manages reading and writing ID3 tags for MP3 files using Mutagen."""
@@ -307,20 +432,61 @@ class FileService:
             dict: A dictionary of file properties.
         """
         try:
-            audio = MP3(file_path)
-            id3_service = ID3TagService()
+            # Check if file exists and is accessible
+            if not os.path.exists(file_path):
+                return {"error": "File not found."}
+
+            # Get file size
+            file_size = os.path.getsize(file_path)
+
+            # Initialize metadata with basic file info
             metadata = {
                 'filename': os.path.basename(file_path),
-                'file_size_bytes': os.path.getsize(file_path),
-                'duration_seconds': round(audio.info.length, 2),
-                'bitrate_bps': audio.info.bitrate,
-                'sample_rate_hz': audio.info.sample_rate,
-                'channels': audio.info.channels,
-                'format': 'mp3',
-                'id3_tags': id3_service.extract_tags(file_path)
+                'file_size_bytes': file_size,
+                'format': 'mp3'
             }
-            # Remove cover art from metadata to keep JSON small
-            metadata['id3_tags'].pop('cover_art', None)
+
+            # Try to load audio file and get duration/audio info
+            try:
+                audio = MP3(file_path)
+
+                # Check if audio info is available
+                if hasattr(audio, 'info') and audio.info is not None:
+                    metadata.update({
+                        'duration_seconds': round(audio.info.length, 2) if audio.info.length else 0,
+                        'bitrate_bps': getattr(audio.info, 'bitrate', 0),
+                        'sample_rate_hz': getattr(audio.info, 'sample_rate', 0),
+                        'channels': getattr(audio.info, 'channels', 0)
+                    })
+                else:
+                    # Fallback values if audio info is not available
+                    metadata.update({
+                        'duration_seconds': 0,
+                        'bitrate_bps': 0,
+                        'sample_rate_hz': 0,
+                        'channels': 0
+                    })
+
+            except Exception as audio_error:
+                logger.warning(f"Could not read audio properties from {file_path}: {audio_error}")
+                metadata.update({
+                    'duration_seconds': 0,
+                    'bitrate_bps': 0,
+                    'sample_rate_hz': 0,
+                    'channels': 0
+                })
+
+            # Try to extract ID3 tags
+            try:
+                id3_service = ID3TagService()
+                id3_tags = id3_service.extract_tags(file_path)
+                # Remove cover art from metadata to keep JSON small
+                id3_tags.pop('cover_art', None)
+                metadata['id3_tags'] = id3_tags
+            except Exception as id3_error:
+                logger.warning(f"Could not read ID3 tags from {file_path}: {id3_error}")
+                metadata['id3_tags'] = {}
+
             return metadata
         except Exception as e:
             logger.error(f"Failed to collect file metadata for {file_path}: {e}", exc_info=True)
@@ -412,3 +578,27 @@ class FileService:
 
         temp_files.sort()  # Sort to ensure predictable order
         return temp_files
+
+    def parse_size_string(self, size_str):
+        """
+        Parse size string like "5mb", "100mb" to bytes.
+
+        Args:
+            size_str (str): Size string with unit.
+
+        Returns:
+            int: Size in bytes.
+        """
+        size_str = size_str.lower().strip()
+
+        if size_str.endswith('mb'):
+            return int(float(size_str[:-2]) * 1024 * 1024)
+        elif size_str.endswith('gb'):
+            return int(float(size_str[:-2]) * 1024 * 1024 * 1024)
+        elif size_str.endswith('kb'):
+            return int(float(size_str[:-2]) * 1024)
+        elif size_str.endswith('b'):
+            return int(size_str[:-1])
+        else:
+            # Assume MB if no unit specified
+            return int(float(size_str) * 1024 * 1024)
